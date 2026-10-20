@@ -1,0 +1,17 @@
+name: Build N60 Pro Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Build note'
+        required: false
+        default: 'manual build'
+
+# Full workflow to be implemented in Phase 1
+jobs:
+  placeholder:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Placeholder
+        run: echo "Build workflow not yet implemented"

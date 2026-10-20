@@ -1,0 +1,25 @@
+From upstream mt76 backport
+Date: Thu, 16 Sep 2026 00:00:00 +0000
+Subject: [PATCH] wifi: mt76: initialize tx_info band for 802.3 offload
+
+Backport from upstream commit (2026-09-16):
+Initialize info->band when IEEE80211_TX_CTL_HW_80211_ENCAP is set
+to fix kernel panic in mt76_txq_dequeue().
+
+Signed-off-by: ImmortalWrt Build <build@immortalwrt.org>
+---
+ tx.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tx.c b/tx.c
+--- a/tx.c
++++ b/tx.c
+@@ -382,6 +382,8 @@ mt76_txq_dequeue(struct mt76_phy *phy, struct mt76_txq *mtxq)
+ 
+ 	info = IEEE80211_SKB_CB(skb);
+ 	info->hw_queue |= FIELD_PREP(MT_TX_HW_QUEUE_PHY, phy->band_idx);
++	if (info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP)
++		info->band = phy->chandef.chan->band;
+ 
+ 	return skb;
+ }

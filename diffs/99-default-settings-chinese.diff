@@ -1,0 +1,13 @@
+diff --git a/package/emortal/default-settings/files/99-default-settings-chinese b/package/emortal/default-settings/files/99-default-settings-chinese
+index d640c6b..901e399 100755
+--- a/package/emortal/default-settings/files/99-default-settings-chinese
++++ b/package/emortal/default-settings/files/99-default-settings-chinese
+@@ -5,7 +5,7 @@ uci -q get system.@imm_init[0] > "/dev/null" || uci -q add system imm_init > "/d
+ if ! uci -q get system.@imm_init[0].system_chn > "/dev/null"; then
+ 	uci -q batch <<-EOF
+ 		set system.@system[0].timezone="CST-8"
+-		set system.@system[0].zonename="Asia/Shanghai"
++		set system.@system[0].zonename="Asia/Taipei"
+ 
+ 		delete system.ntp.server
+ 		add_list system.ntp.server="ntp.tencent.com"

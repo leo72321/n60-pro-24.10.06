@@ -1,0 +1,14 @@
+diff --git a/include/host-build.mk b/include/host-build.mk
+index 4dfa055..26487d2 100644
+--- a/include/host-build.mk
++++ b/include/host-build.mk
+@@ -61,7 +61,8 @@ HOST_CONFIGURE_VARS = \
+ 	CPPFLAGS="$(HOST_CPPFLAGS)" \
+ 	CXXFLAGS="$(HOST_CXXFLAGS)" \
+ 	LDFLAGS="$(HOST_LDFLAGS)" \
+-	CONFIG_SHELL="$(SHELL)"
++	CONFIG_SHELL="$(SHELL)" \
++	FORCE_UNSAFE_CONFIGURE=1
+ 
+ HOST_CONFIGURE_ARGS = \
+ 	--target=$(GNU_HOST_NAME) \
