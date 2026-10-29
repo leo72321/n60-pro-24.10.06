@@ -1,6 +1,6 @@
 # N60 Pro ImmortalWrt 24.10.6 Overlay Build
 
-Private overlay repository for Netcore N60 Pro custom ImmortalWrt firmware.
+Overlay repository for Netcore N60 Pro custom ImmortalWrt firmware.
 
 ## Upstream
 
@@ -36,3 +36,34 @@ diffs/               Diffs applied to immortalwrt source tree
 - `config_generate.diff` — Default timezone: Asia/Taipei / CST-8
 - `99-default-settings.diff` — Default language: zh_cn
 - `99-default-settings-chinese.diff` — Timezone: Asia/Taipei
+
+## ROUTER_CONFIG: private router settings
+
+Configure one repository secret named `ROUTER_CONFIG` in
+Settings > Secrets and variables > Actions > New repository secret.
+
+The secret holds a single JSON object. Replace these **example** values with yours:
+
+```json
+{
+  "wlan_name": "MyWiFi",
+  "wlan_password": "example-only-password",
+  "root_password": "example-only-root-password",
+  "lan_ip_address": "192.168.100.1",
+  "pppoe_username": "",
+  "pppoe_password": ""
+}
+```
+
+All six fields must be strings; use empty PPPoE fields together if PPPoE is unused.
+GitHub does not show secret values after they have been saved. Keep your own secure copy.
+
+The manual GitHub Actions workflow validates this secret and creates
+`files/etc/uci-defaults/99-router-config` only inside its temporary runner workspace.
+The generated file is ignored by Git, never committed, and not uploaded by this workflow.
+The template is stored in `templates/uci-defaults/`, and the Python generator in `scripts/`.
+
+**Build status:** The workflow currently prepares private first-boot settings, but firmware compilation has not yet been implemented in this overlay repository.
+
+**Security warning:** Credentials embedded in the finished firmware are extractable from
+`/rom/etc/uci-defaults/`. Do not publicly upload or release a firmware image containing private credentials, even if the source repository is public.
