@@ -18,6 +18,17 @@ ImmortalWrt 24.10.6 原始碼，目標是驗證 2026-09-16 的 Kernel Panic 修�
 
 目前是已完成 CI 程式與靜態檢查，**尚未執行真正的雲端完整編譯或實機驗證**。第一次刷機前請先保留原版韌體與救援方式。
 
+## 編譯快取（加速第二次以後的 Actions）
+
+目前 GitHub Actions 使用 `actions/cache/restore@v4` / `actions/cache/save@v4` 加速重複編譯：
+
+- **`firmware/dl`**：快取下載好的 OpenWrt/ImmortalWrt 套件原始碼；下載成功就保存，即使後續編譯失敗也可重用。
+- **`firmware/.ccache`**：快取編譯器產生的 C/C++ 物件檔，設定上限 **1500 MB**；若編譯失敗，仍嘗試保存已有的快取，加速下一次除錯。
+- 快取金鑰與固定版本、裝置設定和補丁關聯；變更相關設定時會以舊快取作為備援，自動重新計算編譯結果。
+- **不快取** `ROUTER_CONFIG`、`firmware/files`、`firmware/bin`、`dist`、`build_dir` 或整份韌體，以防密碼外洩及過大／過期的編譯狀態。
+
+首次編譯需要建立快取，未必比較快；第二次開始才可能節省下載與部分編譯時間。快取是否命中及可節省多久，須看實際 Actions 執行紀錄。GitHub Actions **Cache** 與下載韌體的 **Artifact** 是兩種不同的保存機制；本專案韌體 Artifact 仍為 7 天。
+
 ## Upstream
 
 - **Repository**: immortalwrt/immortalwrt
