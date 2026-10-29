@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'ci: trigger one cached N60 Pro build' }}
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'ci-trigger-cached-n60-pro-run-once' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     env:
