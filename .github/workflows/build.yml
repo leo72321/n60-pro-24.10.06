@@ -99,6 +99,7 @@ jobs:
           key: n60-ccache-ubuntu24-v1-${{ hashFiles('firmware/feeds.conf.default', 'configs/n60-pro.config', 'patches/mt76/*.patch') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             n60-ccache-ubuntu24-v1-${{ hashFiles('firmware/feeds.conf.default', 'configs/n60-pro.config', 'patches/mt76/*.patch') }}-
+            n60-ccache-ubuntu24-v1-
 
       - name: Validate mt76 fix and overlay custom packages
         run: |
