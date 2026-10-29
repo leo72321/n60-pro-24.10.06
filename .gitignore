@@ -1,1 +1,5 @@
 /files/etc/uci-defaults/99-router-config
+/firmware/
+/dist/
+__pycache__/
+*.pyc
