@@ -1,35 +1,164 @@
-name: Prepare N60 Pro Firmware Overlay
+name: Build N60 Pro (ImmortalWrt 24.10.6 + mt76 fix)
 
 on:
   workflow_dispatch:
     inputs:
+      private_settings:
+        description: 'Embed ROUTER_CONFIG and encrypt the download (true = private firmware)'
+        type: boolean
+        default: true
+        required: true
       note:
-        description: 'Preparation note'
+        description: 'Optional build note'
         required: false
-        default: 'manual run'
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: n60-pro-firmware-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  prepare-private-settings:
+  build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 350
     steps:
-      - name: Checkout overlay
+      - name: Checkout overlay repository
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Validate renderer without private values
+
+      - name: Test settings utilities without real credentials
         run: python3 -m unittest discover -s tests -v
-      - name: Generate private first-boot settings
+
+      - name: Validate private config before expensive build
+        if: ${{ inputs.private_settings }}
         env:
           ROUTER_CONFIG: ${{ secrets.ROUTER_CONFIG }}
         run: |
           set -euo pipefail
           python3 scripts/render_router_config.py
           sh -n files/etc/uci-defaults/99-router-config
-      - name: Report current workflow scope
+
+      - name: Reclaim disk space for cross-compilation
         run: |
-          echo '::notice::First-boot settings prepared in temporary runner storage.'
-          echo '::notice::Firmware compilation is not yet configured in this repository.'
-          echo 'No private settings or firmware images are uploaded.'
+          set -euo pipefail
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/hostedtoolcache \
+            /usr/local/share/powershell /usr/local/.ghcup /opt/az /usr/share/swift
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Install ImmortalWrt build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential clang llvm flex bison gawk gcc-multilib g++-multilib \
+            gettext git libncurses-dev libssl-dev libelf-dev libgmp-dev \
+            libmpc-dev libmpfr-dev libreadline-dev cmake gperf help2man \
+            patch pkgconf python3 python3-ply python3-pyelftools \
+            rsync unzip zlib1g-dev file curl wget xz-utils zstd \
+            subversion swig cpio squashfs-tools device-tree-compiler \
+            p7zip-full ninja-build qemu-utils
+          df -h /
+
+      - name: Checkout pinned ImmortalWrt source
+        uses: actions/checkout@v4
+        with:
+          repository: immortalwrt/immortalwrt
+          ref: 5fa11a1b5689154d296fdacf1e16a7abccb897b9
+          path: firmware
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Validate mt76 fix and overlay custom packages
+        run: |
+          set -euo pipefail
+          bash scripts/prepare_source.sh firmware
+          mkdir -p firmware/files
+          cp -a files/. firmware/files/
+
+      - name: Install pinned package feeds
+        working-directory: firmware
+        run: |
+          set -euo pipefail
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Generate N60 Pro build configuration
+        run: |
+          set -euo pipefail
+          cp configs/n60-pro.config firmware/.config
+          make -C firmware defconfig
+          grep -Fxq 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y' firmware/.config
+          grep -Fxq 'CONFIG_PACKAGE_luci=y' firmware/.config
+          echo 'Configuration verified: Netcore N60 Pro with LuCI.'
+
+      - name: Download sources
+        working-directory: firmware
+        run: |
+          set -euo pipefail
+          make download -j4
+          df -h /
+
+      - name: Compile image (retry one job for full failure diagnostics)
+        working-directory: firmware
+        run: |
+          set -euo pipefail
+          make -j4 || make -j1 V=s
+
+      - name: Stage N60 Pro sysupgrade image and checksums
+        run: |
+          set -euo pipefail
+          mkdir -p dist/payload
+          mapfile -t images < <(find firmware/bin/targets/mediatek/filogic \
+            -maxdepth 1 -type f -name '*netcore_n60-pro*sysupgrade.itb' -print)
+          if (( ${#images[@]} != 1 )); then
+            echo "Expected exactly one N60 Pro sysupgrade image, got ${#images[@]}" >&2
+            exit 1
+          fi
+          test -s "${images[0]}"
+          cp "${images[0]}" dist/payload/
+          (cd dist/payload && sha256sum *.itb > SHA256SUMS)
+          echo 'Firmware image and checksum prepared (not published yet).'
+
+      - name: Encrypt private image with password derived from ROUTER_CONFIG
+        if: ${{ inputs.private_settings }}
+        env:
+          ROUTER_CONFIG: ${{ secrets.ROUTER_CONFIG }}
+        run: |
+          set -euo pipefail
+          archive_password="$(python3 scripts/archive_key.py)"
+          7z a -t7z -mhe=on -mx=5 "-p${archive_password}" \
+            dist/n60-pro-private.7z ./dist/payload/* >/dev/null
+          7z t "-p${archive_password}" dist/n60-pro-private.7z >/dev/null
+          unset archive_password
+          test -s dist/n60-pro-private.7z
+          echo 'Encrypted archive verified; original private firmware is not uploaded.'
+
+      - name: Upload encrypted private firmware (ciphertext only)
+        if: ${{ inputs.private_settings }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: n60-pro-private-encrypted
+          path: dist/n60-pro-private.7z
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload generic firmware (no private credentials)
+        if: ${{ !inputs.private_settings }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: n60-pro-generic-sysupgrade
+          path: dist/payload/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Disk usage diagnostics
+        if: always()
+        run: |
+          df -h /
+          du -sh firmware 2>/dev/null || true
