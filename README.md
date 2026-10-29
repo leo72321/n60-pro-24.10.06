@@ -37,12 +37,37 @@ diffs/               Diffs applied to immortalwrt source tree
 - `99-default-settings.diff` — Default language: zh_cn
 - `99-default-settings-chinese.diff` — Timezone: Asia/Taipei
 
-## ROUTER_CONFIG: private router settings
+## Wi-Fi kernel panic fix (2026-09-16 backport)
 
-Configure one repository secret named `ROUTER_CONFIG` in
-Settings > Secrets and variables > Actions > New repository secret.
+The GitHub Actions workflow builds a **minimal N60 Pro sysupgrade firmware**
+using pinned ImmortalWrt 24.10.6 source and its existing open-source
+`mt76` / `mt7915e` drivers. It adds
+`patches/mt76/999-fix-8023-offload-tx-info-band.patch` to
+`package/kernel/mt76/patches/`, so the driver is fixed during compilation.
 
-The secret holds a single JSON object. Replace these **example** values with yours:
+- ImmortalWrt commit: `5fa11a1b5689154d296fdacf1e16a7abccb897b9`
+- mt76 source: `eb567bc7f9b692bbf1ddfe31dd740861c58ec85b`
+- Device: `mediatek/filogic`, `netcore_n60-pro`
+- Selected UI: LuCI with Traditional Chinese language package
+- Existing custom packages are copied into the build tree, but **not selected**
+  for this first minimal Wi-Fi validation build.
+- The historical `diffs/` changes are deliberately not applied until the
+  base crash-fix image builds successfully.
+
+**Verification status:** The revision and patch content have been inspected.
+The full firmware build has not yet been run or verified on a physical router.
+A successful compilation also does not prove the original Wi-Fi crash is fixed.
+
+## Build firmware on GitHub Actions
+
+1. Open **Actions** in this repository and select
+   **Build N60 Pro (ImmortalWrt 24.10.6 + mt76 fix)**.
+2. Click **Run workflow**. The `private_settings` input is enabled by default.
+3. For a private image, add **one repository Secret** named `ROUTER_CONFIG`
+   under Settings > Secrets and variables > Actions.
+
+Example JSON (replace with your actual private values in the GitHub Secret,
+**not in tracked source files**):
 
 ```json
 {
@@ -55,15 +80,42 @@ The secret holds a single JSON object. Replace these **example** values with you
 }
 ```
 
-All six fields must be strings; use empty PPPoE fields together if PPPoE is unused.
-GitHub does not show secret values after they have been saved. Keep your own secure copy.
+The six values must be strings. Both PPPoE values can be empty only when PPPoE
+is not used.
 
-The manual GitHub Actions workflow validates this secret and creates
-`files/etc/uci-defaults/99-router-config` only inside its temporary runner workspace.
-The generated file is ignored by Git, never committed, and not uploaded by this workflow.
-The template is stored in `templates/uci-defaults/`, and the Python generator in `scripts/`.
+### Download the result
 
-**Build status:** The workflow currently prepares private first-boot settings, but firmware compilation has not yet been implemented in this overlay repository.
+**Private mode** (`private_settings=true`, default):
+The runner generates `files/etc/uci-defaults/99-router-config` from the
+Secret and embeds it in the image. Since firmware images expose embedded
+`/rom/etc/uci-defaults` scripts, the workflow wraps the firmware and SHA256
+checksums in a password-protected **AES-256 7z archive** before uploading the
+Actions artifact called `n60-pro-private-encrypted`.
 
-**Security warning:** Credentials embedded in the finished firmware are extractable from
-`/rom/etc/uci-defaults/`. Do not publicly upload or release a firmware image containing private credentials, even if the source repository is public.
+The password is derived deterministically from the entire ROUTER_CONFIG JSON,
+so **keep a private copy of those six values**. On Windows with Python installed,
+run `scripts/get_archive_password.pyw`, select your saved JSON file, and
+paste the copied password into 7-Zip. The script processes the JSON locally.
+If you change the Secret after building, old archives require the original
+values.
+
+**Generic mode** (`private_settings=false`): Builds with no private
+`uci-defaults` settings and uploads an unencrypted
+`n60-pro-generic-sysupgrade` artifact.
+
+**Security:** Do not upload an unencrypted private firmware or raw router
+configuration to a public GitHub Release, Actions artifact, issue, or commit.
+7z archive security still depends on the strength of your configuration
+passwords. GitHub Actions artifacts expire after seven days.
+
+### Flash safety
+
+Only use the generated **N60 Pro sysupgrade.itb** for a compatible device
+already running the appropriate OpenWrt/ImmortalWrt sysupgrade scheme.
+Keep a working backup and recovery path; do not flash bootloader/preloader
+images as part of this test. First-boot settings can change the LAN IP
+and Wi-Fi credentials and disconnect your current session.
+
+The GitHub-hosted runner has limited disk space. The workflow removes unused
+toolchains and performs a minimal build, but a real Actions run is required to
+verify dependency availability, disk usage, and final image generation.
