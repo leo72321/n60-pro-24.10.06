@@ -1,17 +1,35 @@
-name: Build N60 Pro Firmware
+name: Prepare N60 Pro Firmware Overlay
 
 on:
   workflow_dispatch:
     inputs:
       note:
-        description: 'Build note'
+        description: 'Preparation note'
         required: false
-        default: 'manual build'
+        default: 'manual run'
 
-# Full workflow to be implemented in Phase 1
+permissions:
+  contents: read
+
 jobs:
-  placeholder:
+  prepare-private-settings:
     runs-on: ubuntu-24.04
     steps:
-      - name: Placeholder
-        run: echo "Build workflow not yet implemented"
+      - name: Checkout overlay
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate renderer without private values
+        run: python3 -m unittest discover -s tests -v
+      - name: Generate private first-boot settings
+        env:
+          ROUTER_CONFIG: ${{ secrets.ROUTER_CONFIG }}
+        run: |
+          set -euo pipefail
+          python3 scripts/render_router_config.py
+          sh -n files/etc/uci-defaults/99-router-config
+      - name: Report current workflow scope
+        run: |
+          echo '::notice::First-boot settings prepared in temporary runner storage.'
+          echo '::notice::Firmware compilation is not yet configured in this repository.'
+          echo 'No private settings or firmware images are uploaded.'
