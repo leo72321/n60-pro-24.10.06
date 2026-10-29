@@ -2,6 +2,22 @@
 
 Overlay repository for Netcore N60 Pro custom ImmortalWrt firmware.
 
+## 快速開始（繁體中文）
+
+這是 **Netcore N60 Pro 開源 mt76 Wi-Fi 驅動修補版**，使用固定的
+ImmortalWrt 24.10.6 原始碼，目標是驗證 2026-09-16 的 Kernel Panic 修正。
+
+1. 開啟本倉庫的 **Actions**，選擇 **Build N60 Pro (ImmortalWrt 24.10.6 + mt76 fix)**。
+2. 按 **Run workflow**。預設的 `private_settings=true` 會讀取你已建立的 `ROUTER_CONFIG`，編譯含私人設定的韌體。
+3. 成功後下載 `n60-pro-private-encrypted`，先解開 GitHub 下載的外層 ZIP，再使用 7-Zip 解開內部加密的 `.7z`。
+4. 解密密碼由完整的六項 `ROUTER_CONFIG` 值產生。Windows 可執行 `scripts/get_archive_password.pyw`（需要安裝 Python），選取自己保存的設定 JSON 後複製密碼。
+
+**請務必保存自己的 ROUTER_CONFIG JSON 副本。** GitHub Secret 儲存後不能再次顯示原文；改了設定，舊韌體壓縮檔仍須使用原本六項設定才能解密。
+
+如果選擇 `private_settings=false`，則不會寫入私人密碼，下載的是可直接解壓的通用測試韌體。
+
+目前是已完成 CI 程式與靜態檢查，**尚未執行真正的雲端完整編譯或實機驗證**。第一次刷機前請先保留原版韌體與救援方式。
+
 ## Upstream
 
 - **Repository**: immortalwrt/immortalwrt
