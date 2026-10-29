@@ -24,6 +24,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 350
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/firmware/.ccache
+      CCACHE_MAXSIZE: 1500M
     steps:
       - name: Checkout overlay repository
         uses: actions/checkout@v4
@@ -74,6 +77,29 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
+      # Cache only public downloaded sources and compiler objects. Never cache
+      # firmware/files, ROUTER_CONFIG, decrypted images or full build directories.
+      - name: Create cache directories
+        run: mkdir -p firmware/dl firmware/.ccache
+
+      - name: Restore downloaded package sources
+        id: dl-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: firmware/dl
+          key: n60-dl-ubuntu24-v1-${{ hashFiles('firmware/feeds.conf.default', 'configs/n60-pro.config', 'packages/**/Makefile') }}
+          restore-keys: |
+            n60-dl-ubuntu24-v1-
+
+      - name: Restore ccache compiler outputs
+        id: ccache-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: firmware/.ccache
+          key: n60-ccache-ubuntu24-v1-${{ hashFiles('firmware/feeds.conf.default', 'configs/n60-pro.config', 'patches/mt76/*.patch') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            n60-ccache-ubuntu24-v1-${{ hashFiles('firmware/feeds.conf.default', 'configs/n60-pro.config', 'patches/mt76/*.patch') }}-
+
       - name: Validate mt76 fix and overlay custom packages
         run: |
           set -euo pipefail
@@ -95,7 +121,8 @@ jobs:
           make -C firmware defconfig
           grep -Fxq 'CONFIG_TARGET_mediatek_filogic_DEVICE_netcore_n60-pro=y' firmware/.config
           grep -Fxq 'CONFIG_PACKAGE_luci=y' firmware/.config
-          echo 'Configuration verified: Netcore N60 Pro with LuCI.'
+          grep -Fxq 'CONFIG_CCACHE=y' firmware/.config
+          echo 'Configuration verified: Netcore N60 Pro, LuCI, and ccache.'
 
       - name: Download sources
         working-directory: firmware
@@ -104,11 +131,35 @@ jobs:
           make download -j4
           df -h /
 
+      - name: Save downloaded sources after successful download
+        if: ${{ steps.dl-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: firmware/dl
+          key: ${{ steps.dl-cache.outputs.cache-primary-key }}
+
       - name: Compile image (retry one job for full failure diagnostics)
+        id: compile
         working-directory: firmware
         run: |
           set -euo pipefail
           make -j4 || make -j1 V=s
+
+      # Even when the firmware build fails, its completed object files can
+      # speed up the next diagnostic run. The .ccache folder has no credentials.
+      - name: Show compiler cache statistics
+        if: ${{ !cancelled() && (steps.compile.outcome == 'success' || steps.compile.outcome == 'failure') }}
+        run: |
+          if [ -x firmware/staging_dir/host/bin/ccache ]; then
+            firmware/staging_dir/host/bin/ccache -s || true
+          fi
+
+      - name: Save ccache after compilation attempt
+        if: ${{ !cancelled() && (steps.compile.outcome == 'success' || steps.compile.outcome == 'failure') }}
+        uses: actions/cache/save@v4
+        with:
+          path: firmware/.ccache
+          key: ${{ steps.ccache-cache.outputs.cache-primary-key }}
 
       - name: Stage N60 Pro sysupgrade image and checksums
         run: |
