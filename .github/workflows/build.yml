@@ -125,19 +125,20 @@ jobs:
           (cd dist/payload && sha256sum *.itb > SHA256SUMS)
           echo 'Firmware image and checksum prepared (not published yet).'
 
-      - name: Encrypt private image with password derived from ROUTER_CONFIG
+      - name: Encrypt private image with router root password
         if: ${{ inputs.private_settings }}
         env:
           ROUTER_CONFIG: ${{ secrets.ROUTER_CONFIG }}
         run: |
           set -euo pipefail
-          archive_password="$(python3 scripts/archive_key.py)"
+          archive_password="$(python3 scripts/archive_password.py)"
+          echo "::add-mask::${archive_password}"
           7z a -t7z -mhe=on -mx=5 "-p${archive_password}" \
             dist/n60-pro-private.7z ./dist/payload/* >/dev/null
           7z t "-p${archive_password}" dist/n60-pro-private.7z >/dev/null
           unset archive_password
           test -s dist/n60-pro-private.7z
-          echo 'Encrypted archive verified; original private firmware is not uploaded.'
+          echo 'Encrypted archive verified; use the router root password to extract it.'
 
       - name: Upload encrypted private firmware (ciphertext only)
         if: ${{ inputs.private_settings }}
