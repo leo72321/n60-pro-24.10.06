@@ -1,6 +1,11 @@
 name: Build N60 Pro (ImmortalWrt 24.10.6 + mt76 fix)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build.yml
   workflow_dispatch:
     inputs:
       private_settings:
@@ -22,6 +27,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'push' || github.event.head_commit.message == 'ci: trigger one cached N60 Pro build' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     env:
@@ -37,7 +43,7 @@ jobs:
         run: python3 -m unittest discover -s tests -v
 
       - name: Validate private config before expensive build
-        if: ${{ inputs.private_settings }}
+        if: ${{ github.event_name == 'push' || inputs.private_settings }}
         env:
           ROUTER_CONFIG: ${{ secrets.ROUTER_CONFIG }}
         run: |
@@ -177,7 +183,7 @@ jobs:
           echo 'Firmware image and checksum prepared (not published yet).'
 
       - name: Encrypt private image with router root password
-        if: ${{ inputs.private_settings }}
+        if: ${{ github.event_name == 'push' || inputs.private_settings }}
         env:
           ROUTER_CONFIG: ${{ secrets.ROUTER_CONFIG }}
         run: |
@@ -192,7 +198,7 @@ jobs:
           echo 'Encrypted archive verified; use the router root password to extract it.'
 
       - name: Upload encrypted private firmware (ciphertext only)
-        if: ${{ inputs.private_settings }}
+        if: ${{ github.event_name == 'push' || inputs.private_settings }}
         uses: actions/upload-artifact@v4
         with:
           name: n60-pro-private-encrypted
@@ -201,7 +207,7 @@ jobs:
           retention-days: 7
 
       - name: Upload generic firmware (no private credentials)
-        if: ${{ !inputs.private_settings }}
+        if: ${{ github.event_name != 'push' && !inputs.private_settings }}
         uses: actions/upload-artifact@v4
         with:
           name: n60-pro-generic-sysupgrade
