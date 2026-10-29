@@ -10,9 +10,9 @@ ImmortalWrt 24.10.6 原始碼，目標是驗證 2026-09-16 的 Kernel Panic 修�
 1. 開啟本倉庫的 **Actions**，選擇 **Build N60 Pro (ImmortalWrt 24.10.6 + mt76 fix)**。
 2. 按 **Run workflow**。預設的 `private_settings=true` 會讀取你已建立的 `ROUTER_CONFIG`，編譯含私人設定的韌體。
 3. 成功後下載 `n60-pro-private-encrypted`，先解開 GitHub 下載的外層 ZIP，再使用 7-Zip 解開內部加密的 `.7z`。
-4. 解密密碼由完整的六項 `ROUTER_CONFIG` 值產生。Windows 可執行 `scripts/get_archive_password.pyw`（需要安裝 Python），選取自己保存的設定 JSON 後複製密碼。
+4. **7z 解壓密碼就是 `ROUTER_CONFIG` 裡的 `root_password`（路由器管理員密碼）**，不需要另外計算或執行 Python 工具。
 
-**請務必保存自己的 ROUTER_CONFIG JSON 副本。** GitHub Secret 儲存後不能再次顯示原文；改了設定，舊韌體壓縮檔仍須使用原本六項設定才能解密。
+**請記住編譯當時使用的管理員密碼。** GitHub Secret 儲存後不能查看原文；如果日後更改 `root_password`，舊韌體壓縮檔仍要使用舊密碼。
 
 如果選擇 `private_settings=false`，則不會寫入私人密碼，下載的是可直接解壓的通用測試韌體。
 
@@ -108,12 +108,12 @@ Secret and embeds it in the image. Since firmware images expose embedded
 checksums in a password-protected **AES-256 7z archive** before uploading the
 Actions artifact called `n60-pro-private-encrypted`.
 
-The password is derived deterministically from the entire ROUTER_CONFIG JSON,
-so **keep a private copy of those six values**. On Windows with Python installed,
-run `scripts/get_archive_password.pyw`, select your saved JSON file, and
-paste the copied password into 7-Zip. The script processes the JSON locally.
-If you change the Secret after building, old archives require the original
-values.
+The 7z archive password is **exactly the `root_password` field in
+`ROUTER_CONFIG`**, which is also configured as the router's root login password.
+There is no separate decryption secret or password-derivation utility.
+If you later change the router root password in GitHub Secrets, use the
+**old root password** to open older firmware archives. Choose a strong root
+password, since it also protects the public CI download.
 
 **Generic mode** (`private_settings=false`): Builds with no private
 `uci-defaults` settings and uploads an unencrypted
